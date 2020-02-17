@@ -316,9 +316,10 @@ def make_se_block_fn(list_size, shrinkage=1.0, shrink_first=False, without_squee
         # output shape: [batch_size, 1, last_dim]
         cur_layer = tf.reshape(cur_layer, [-1, list_size, last_dim])
         if mask is None:
-            cur_layer = tf.reduce_mean(cur_layer, axis=1, keepdims=True)
+            cur_layer = tf.reduce_mean(cur_layer, axis=1)
         else:
             # when training & eval, mask out padding records
+            mask = tf.reshape(mask, [-1, list_size, 1])
             cur_layer = tf.reduce_sum(cur_layer * mask, axis=1) / tf.reduce_sum(mask + 1e-6, axis=1)
         return cur_layer
 
@@ -329,18 +330,20 @@ def make_se_block_fn(list_size, shrinkage=1.0, shrink_first=False, without_squee
             cur_layer = tf.nn.relu(cur_layer)
             if not without_squeeze:
                 cur_layer = squeeze(cur_layer, mask, dim)
+                cur_layer = tf.reshape(tf.tile(cur_layer, [1, list_size]), [-1, list_size, dim])
         else:
             cur_layer = input_layer
             if not without_squeeze:
                 cur_layer = squeeze(cur_layer, mask, layer_width)
             cur_layer = tf.compat.v1.layers.dense(cur_layer, units=dim)
             cur_layer = tf.nn.relu(cur_layer)
+            cur_layer = tf.reshape(tf.tile(cur_layer, [1, list_size]), [-1, list_size, dim])
         cur_layer = tf.compat.v1.layers.dense(cur_layer, units=layer_width)
         if without_excite:
             cur_layer = tf.concat([input_layer, cur_layer], axis=-1)
         else:
             excitation = tf.nn.sigmoid(cur_layer)
-            cur_layer = cur_layer * excitation
+            cur_layer = input_layer * excitation
         return cur_layer
 
     return se_block_fn

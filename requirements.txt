@@ -1,1 +1,1 @@
-tensorflow-ranking=0.2.2
+tensorflow-ranking==0.2.2

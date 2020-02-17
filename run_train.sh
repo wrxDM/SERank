@@ -1,7 +1,8 @@
 #!/bin/bash
 
-pip install -r requirements
+pip install -r requirements.txt
 output_dir=outputs
+rm -r $output_dir
 mkdir $output_dir
 
 python serank.py \
