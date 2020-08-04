@@ -4,7 +4,7 @@ This repository contains the tensorflow implementation of SERank model.
 
 Compared with GSF(Groupwise Scoring Function), our method obtains comparable ranking performance gain, while only requiring little computation overhead. 
 
-The SERank model has been suceessfully deployed in [zhihu Search ranking](https://www.zhihu.com/), which is one of the largest Community Question Answering platform in China.
+The SERank model has been suceessfully deployed in [Zhihu Search ranking](https://www.zhihu.com/), which is one of the largest Community Question Answering platform in China.
 
 ![image info](./pics/flops.png)
 
@@ -19,6 +19,13 @@ The demo dataset in this repo is randomly sampled from MSLR web30k dataset.
 You may download the whole web30K dataset from [Microsoft Learning to Rank Datasets
  Page](https://www.microsoft.com/en-us/research/project/mslr/) and place `train.txt`, `vali.txt`, `test.txt` in the data folder.
  
+## Model
+Our main idea is to develop a sequencewise model structure which accepts a list of ranking candidates, and jointly score all candidates.
+We introduce SENet structure into the ranking model, where the basic idea is using SENet structure to compute feature importance according the the context of ranking list.
+![image info](./pics/seblock.jpg)
+
+For the detail about the model structure, you may refer to our paper published on [arkiv](https://arxiv.org/abs/2006.04084).
+
 ## How to Train
 `bash run_train.sh`
 

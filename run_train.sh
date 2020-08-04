@@ -11,4 +11,5 @@ python serank.py \
   --test_path=data/test.txt \
   --output_dir=$output_dir \
   --num_features=136 \
-  --serank=True
+  --serank=True \
+  --query_label_weight=True

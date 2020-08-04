@@ -84,6 +84,7 @@ flags.DEFINE_float(
                                   "multi-objective learning.")
 
 flags.DEFINE_bool("serank", False, "serank")
+flags.DEFINE_bool("query_label_weight", False, "use query label weight")
 flags.DEFINE_float('shrinkage', 2.0, 'se block shrinkage')
 flags.DEFINE_bool("shrink_first", False, "se block with shrink first")
 flags.DEFINE_bool("without_squeeze", False, "se block without squeeze operation")
@@ -194,6 +195,9 @@ def get_train_inputs(features, labels, batch_size):
         """Defines training input fn."""
         # mask out invalid samples for serank
         features['mask'] = np.where(labels >= 0, 1.0, 0.0).astype(labels.dtype)
+
+        valid_label = np.where(labels > 0.0, labels, 0.0)
+        features['query_label_weight'] = np.sum(valid_label, axis=1, keepdims=True)
 
         features_placeholder = {
             k: tf.compat.v1.placeholder(v.dtype, v.shape)
@@ -435,14 +439,16 @@ def train_and_eval():
         train_op = tf.group([minimize_op, update_ops])
         return train_op
 
+    weights_feature_name = 'query_label_weight' if FLAGS.query_label_weight else None
+
     if _use_multi_head():
         primary_head = tfr.head.create_ranking_head(
-            loss_fn=tfr.losses.make_loss_fn(FLAGS.loss),
+            loss_fn=tfr.losses.make_loss_fn(FLAGS.loss, weights_feature_name=weights_feature_name),
             eval_metric_fns=get_eval_metric_fns(),
             train_op_fn=_train_op_fn,
             name=_PRIMARY_HEAD)
         secondary_head = tfr.head.create_ranking_head(
-            loss_fn=tfr.losses.make_loss_fn(FLAGS.secondary_loss),
+            loss_fn=tfr.losses.make_loss_fn(FLAGS.secondary_loss, weights_features_name=weights_feature_name),
             eval_metric_fns=get_eval_metric_fns(),
             train_op_fn=_train_op_fn,
             name=_SECONDARY_HEAD)
