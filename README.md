@@ -1,10 +1,10 @@
 # SERank
 An efficient and effective learning to rank algorithm by mining information across ranking candidates.
-This repository contains the tensorflow implementation of SERank model. The code is developed based on [TF-Ranking](https://github.com/tensorflow/ranking)
+This repository contains the tensorflow implementation of SERank model. The code is developed based on [TF-Ranking](https://github.com/tensorflow/ranking).
 
 Compared with [GSF(Groupwise Scoring Function)](https://arxiv.org/pdf/1811.04415.pdf), our method obtains comparable ranking performance gain, while only requiring little computation overhead. 
 
-The SERank model has been suceessfully deployed in [Zhihu Search ranking](https://www.zhihu.com/), which is one of the largest Community Question Answering platform in China.
+The SERank model has been suceessfully deployed in [Zhihu Search ranking](https://www.zhihu.com/search?type=content&q=deep%20learning), which is one of the largest Community Question Answering platform in China.
 
 ![image info](./pics/flops.png)
 
