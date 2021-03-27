@@ -114,7 +114,8 @@ class IteratorInitializerHook(tf.estimator.SessionRunHook):
     def after_create_session(self, session, coord):
         """Initialize the iterator after the session has been created."""
         del coord
-        self.iterator_initializer_fn(session)
+        if self.iterator_initializer_fn is not None:
+            self.iterator_initializer_fn(session)
 
 
 def example_feature_columns(with_mask=False):
@@ -291,10 +292,7 @@ def get_inputs(path, list_size, is_train=False):
             features['label'] = tf.io.FixedLenFeature([list_size], tf.float32)
             example = tf.io.parse_single_example(proto, features)
             example['mask'] = tf.cast(example['label'] >= tf.zeros_like(example['label']), tf.float32)
-            example = {k: tf.expand_dims(v, axis=-1) for k, v in example.items()}
-
-            #return example, tf.squeeze(example['label'], axis=-1)
-            return example, example['label'][0]
+            return example, example['label']
 
         dataset = tf.data.TFRecordDataset(path)
         dataset = dataset.map(_parse_fn, num_parallel_calls=6)
@@ -353,6 +351,8 @@ def make_se_block_fn(shrinkage=1.0, shrink_first=False, without_squeeze=False, w
         return cur_layer
 
     def se_block_fn(input_layer, layer_width, mask):
+        # input_layer: [batch_size * list_size, dim]
+        # mask: [batch_size
         list_size = tf.shape(mask)[1]
         dim = int(layer_width / shrinkage)
         if shrink_first:
