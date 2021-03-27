@@ -286,6 +286,7 @@ def make_serving_input_fn():
     return tf.estimator.export.build_parsing_serving_input_receiver_fn(
         feature_spec)
 
+
 def get_inputs(path, list_size, is_train=False):
     def _tfrecord_input_fn():
         def _parse_fn(proto):
@@ -302,6 +303,7 @@ def get_inputs(path, list_size, is_train=False):
         dataset = dataset.batch(FLAGS.train_batch_size).prefetch(8)
         iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
         return iterator.get_next()
+
     return _tfrecord_input_fn, IteratorInitializerHook()
 
 
@@ -338,7 +340,6 @@ def make_transform_fn():
 
 
 def make_se_block_fn(shrinkage=1.0, shrink_first=False, without_squeeze=False, without_excite=False):
-
     def squeeze(cur_layer, last_dim, mask=None, list_size=1):
         # output shape: [batch_size, 1, last_dim]
         cur_layer = tf.reshape(cur_layer, [-1, list_size, last_dim])
