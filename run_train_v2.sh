@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#pip install -r requirements.txt
-output_dir=outputs
-rm -r $output_dir
+pip install -r requirements.txt
+output_dir=serank-b
+#rm -r $output_dir
 mkdir $output_dir
 
 python serank.py \
@@ -11,6 +11,8 @@ python serank.py \
   --test_path=web30k/test.tfrecord \
   --output_dir=$output_dir \
   --num_features=136 \
-  --serank=True \
+  --serank=true \
+  --shrink_first=True \
   --query_label_weight=False \
+  --num_train_steps=10000 \
   --tfrecord=True
