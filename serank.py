@@ -71,7 +71,8 @@ flags.DEFINE_list("hidden_layer_dims", ["256", "128", "64"],
                   "Sizes for hidden layers.")
 
 flags.DEFINE_integer("num_features", 136, "Number of features per document.")
-flags.DEFINE_integer("list_size", 100, "List size used for training.")
+flags.DEFINE_integer("train_list_size", 200, "List size used for training.")
+flags.DEFINE_integer("valid_list_size", 800, "List size used for valid and test.")
 flags.DEFINE_integer("group_size", 1, "Group size used in score function.")
 
 flags.DEFINE_string("loss", "softmax_loss",
@@ -89,6 +90,8 @@ flags.DEFINE_float('shrinkage', 2.0, 'se block shrinkage')
 flags.DEFINE_bool("shrink_first", False, "se block with shrink first")
 flags.DEFINE_bool("without_squeeze", False, "se block without squeeze operation")
 flags.DEFINE_bool("without_excite", False, "se block without excite operation")
+
+flags.DEFINE_bool("tfrecord", False, "use tfrecord input")
 
 FLAGS = flags.FLAGS
 
@@ -281,6 +284,27 @@ def make_serving_input_fn():
     return tf.estimator.export.build_parsing_serving_input_receiver_fn(
         feature_spec)
 
+def get_inputs(path, list_size, is_train=False):
+    def _tfrecord_input_fn():
+        def _parse_fn(proto):
+            features = {k: tf.io.FixedLenFeature([list_size], tf.float32) for k in example_feature_columns()}
+            features['label'] = tf.io.FixedLenFeature([list_size], tf.float32)
+            example = tf.io.parse_single_example(proto, features)
+            example['mask'] = tf.cast(example['label'] >= tf.zeros_like(example['label']), tf.float32)
+            example = {k: tf.expand_dims(v, axis=-1) for k, v in example.items()}
+
+            #return example, tf.squeeze(example['label'], axis=-1)
+            return example, example['label'][0]
+
+        dataset = tf.data.TFRecordDataset(path)
+        dataset = dataset.map(_parse_fn, num_parallel_calls=6)
+        if is_train:
+            dataset = dataset.repeat().shuffle(1000)
+        dataset = dataset.batch(FLAGS.train_batch_size).prefetch(8)
+        iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
+        return iterator.get_next()
+    return _tfrecord_input_fn, IteratorInitializerHook()
+
 
 def make_transform_fn():
     """Returns a transform_fn that converts features to dense Tensors."""
@@ -314,10 +338,11 @@ def make_transform_fn():
     return _transform_fn
 
 
-def make_se_block_fn(list_size, shrinkage=1.0, shrink_first=False, without_squeeze=False, without_excite=False):
+def make_se_block_fn(shrinkage=1.0, shrink_first=False, without_squeeze=False, without_excite=False):
 
     def squeeze(cur_layer, mask, last_dim):
         # output shape: [batch_size, 1, last_dim]
+        list_size = tf.shape(mask)[1]
         cur_layer = tf.reshape(cur_layer, [-1, list_size, last_dim])
         if mask is None:
             cur_layer = tf.reduce_mean(cur_layer, axis=1)
@@ -328,6 +353,7 @@ def make_se_block_fn(list_size, shrinkage=1.0, shrink_first=False, without_squee
         return cur_layer
 
     def se_block_fn(input_layer, layer_width, mask):
+        list_size = tf.shape(mask)[1]
         dim = int(layer_width / shrinkage)
         if shrink_first:
             cur_layer = tf.compat.v1.layers.dense(input_layer, units=dim)
@@ -415,18 +441,22 @@ def get_eval_metric_fns():
 
 def train_and_eval():
     """Train and Evaluate."""
+    if FLAGS.tfrecord:
+        train_input_fn, train_hook = get_inputs(FLAGS.train_path, FLAGS.train_list_size, is_train=True)
+        vali_input_fn, vali_hook = get_inputs(FLAGS.vali_path, FLAGS.valid_list_size)
+        test_input_fn, test_hook = get_inputs(FLAGS.test_path, FLAGS.valid_list_size)
+    else:
+        features, labels = load_libsvm_data(FLAGS.train_path, FLAGS.train_list_size)
+        train_input_fn, train_hook = get_train_inputs(features, labels,
+                                                      FLAGS.train_batch_size)
 
-    features, labels = load_libsvm_data(FLAGS.train_path, FLAGS.list_size)
-    train_input_fn, train_hook = get_train_inputs(features, labels,
-                                                  FLAGS.train_batch_size)
+        features_vali, labels_vali = load_libsvm_data(FLAGS.vali_path,
+                                                      FLAGS.valid_list_size)
+        vali_input_fn, vali_hook = get_eval_inputs(features_vali, labels_vali)
 
-    features_vali, labels_vali = load_libsvm_data(FLAGS.vali_path,
-                                                  FLAGS.list_size)
-    vali_input_fn, vali_hook = get_eval_inputs(features_vali, labels_vali)
-
-    features_test, labels_test = load_libsvm_data(FLAGS.test_path,
-                                                  FLAGS.list_size)
-    test_input_fn, test_hook = get_eval_inputs(features_test, labels_test)
+        features_test, labels_test = load_libsvm_data(FLAGS.test_path,
+                                                      FLAGS.valid_list_size)
+        test_input_fn, test_hook = get_eval_inputs(features_test, labels_test)
 
     optimizer = tf.compat.v1.train.AdagradOptimizer(
         learning_rate=FLAGS.learning_rate)
@@ -462,8 +492,7 @@ def train_and_eval():
 
     se_block_fn = None
     if FLAGS.serank:
-        se_block_fn = make_se_block_fn(FLAGS.list_size,
-                                       shrinkage=FLAGS.shrinkage,
+        se_block_fn = make_se_block_fn(shrinkage=FLAGS.shrinkage,
                                        shrink_first=FLAGS.shrink_first,
                                        without_squeeze=FLAGS.without_squeeze,
                                        without_excite=FLAGS.without_excite)
